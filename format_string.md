@@ -1,5 +1,4 @@
-
-﻿# WTF is Format String?
+# WTF is Format String?
 
 ## Introdução
 Nesse **wtf** iremos entender o que é format string, como explorar as vulnerabilidades e como fazer com que o seu código não apresente esse problema.
